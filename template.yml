@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: "Node.js app"
+
+Resources:
+  MySecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: SSH and HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1337
+          ToPort: 1337
+          CidrIp: 0.0.0.0/0
+          Description: Allow incoming trafic on port 1337
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: Allow incoming SSH on port 22
+
+  MyInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-00c39f71452c08778
+      SecurityGroups:
+        - !Ref MySecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Clone the Git repository
+          git clone https://github.com/coderonfleek/simple-node-api.git /home/ec2-user/app
+
+          # Install dependencies and run the app
+          cd /home/ec2-user/app
+          npm install
+          npm start
+
+  
+
