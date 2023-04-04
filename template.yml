@@ -11,17 +11,17 @@ Parameters:
     ConstraintDescription: must be the name of an existing EC2 KeyPair.
 
   CidrBlockForVPC:
-    Default: 187.0.0.0/24
+    Default: 10.0.0.0/16
     Description: CidrBlockForVPC
     Type: String
 
   CidrBlockForSubnet1:
-    Default: 187.0.0.0/25
+    Default: 10.0.1.0/24
     Description: Cidr Block For Subnet1
     Type: String
 
   CidrBlockForSubnet2:
-    Default: 187.0.0.128/25
+    Default: 10.0.2.0/24
     Description: Cidr Block For Subnet2
     Type: String
 
@@ -51,10 +51,8 @@ Resources:
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId:
-        Ref: VPC
-      InternetGatewayId:
-        Ref: InternetGateway
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
 
   Subnet1:
     Type: "AWS::EC2::Subnet"
@@ -62,6 +60,7 @@ Resources:
       VpcId: !Ref VPC
       AvailabilityZone: !Ref AvailabilityZoneForSubnet1
       CidrBlock: !Ref CidrBlockForSubnet1
+      MapPublicIpOnLaunch: true
 
   Subnet2:
     Type: "AWS::EC2::Subnet"
@@ -78,6 +77,19 @@ Resources:
       Subnets:
         - !Ref Subnet1
         - !Ref Subnet2
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP access to the load balancer
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VPC
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -121,6 +133,10 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
       VpcId: !Ref VPC
 
   Instance:
@@ -129,6 +145,9 @@ Resources:
       InstanceType: t2.micro
       ImageId: ami-00c39f71452c08778
       KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: EC2byCloudFormation
       NetworkInterfaces:
         - AssociatePublicIpAddress: "true"
           DeviceIndex: "0"
@@ -138,13 +157,29 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # Clone the Git repository
-          git clone https://github.com/coderonfleek/simple-node-api.git /home/ec2-user/app
+          cd /home/ec2-user
 
-          # Install dependencies and run the app
-          cd /home/ec2-user/app
-          npm install
-          PORT=80 npm start
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MyRouteTable
+
+  MyRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+
+  MySubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet1
+      RouteTableId: !Ref MyRouteTable
 
 Outputs:
   LoadBalancer:
