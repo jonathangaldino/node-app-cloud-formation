@@ -95,7 +95,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: my-target-group
-      Port: 80
+      Port: 1337
       Protocol: HTTP
       TargetType: instance
       VpcId: !Ref VPC
@@ -131,8 +131,9 @@ Resources:
       GroupDescription: Security group for EC2 instance
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
+          FromPort: 1337
+          ToPort: 1337
+          CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -157,7 +158,28 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          cd /home/ec2-user
+
+          # Update the package manager
+          sudo yum update -y
+
+          # Install Git
+          sudo yum install -y git
+
+          # Install Node.js LTS
+          sudo yum install -y nodejs
+
+          # Install PM2
+          npm i -g pm2
+
+          # Clone the Git repository
+          git clone https://github.com/jonathangaldino/simple-node-api /home/ec2-user/app
+
+          # Install dependencies
+          cd /home/ec2-user/app
+          npm install
+
+          # Run the app
+          sudo pm2 start server.js
 
   MyRouteTable:
     Type: AWS::EC2::RouteTable
